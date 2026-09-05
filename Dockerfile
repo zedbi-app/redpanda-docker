@@ -2,11 +2,6 @@ FROM redpandadata/redpanda:v26.2.2
 
 ARG REDPANDA_VERSION=v26.2.2
 
-RUN apt-get update && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-      bash && \
-    rm -rf /var/lib/apt/lists/*
-
 ENV REDPANDA_VERSION=${REDPANDA_VERSION}
 ENV REDPANDA_DEV_MODE=true
 
