@@ -1,56 +1,56 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ -z "${RP_NODE_ID:-}" ]]; then
-  export RP_NODE_ID=0
+# Avoid process restart loops when /proc/sys/fs/aio-max-nr is read-only.
+AIO_MIN="${AIO_MIN:-1024}"
+if [[ -w /proc/sys/fs/aio-max-nr ]]; then
+  CURRENT=$(cat /proc/sys/fs/aio-max-nr 2>/dev/null || echo 0)
+  if [[ "${CURRENT}" -lt "${AIO_MIN}" ]]; then
+    echo "${AIO_MIN}" > /proc/sys/fs/aio-max-nr || true
+  fi
 fi
 
-if [[ -z "${RP_KAFKA_LISTENERS:-}" ]]; then
-  export RP_KAFKA_LISTENERS="PLAINTEXT://0.0.0.0:9092,EXTERNAL://0.0.0.0:19092"
+# Build Redpanda flags from one var per flag to keep Railway Runtime V2 happy.
+# Railway injects each variable as a single CLI argument; Redpanda does neither
+# parse the multi-listener comma list inside a single flag nor accept repeated
+# uses of the same flag.
+ARGS=("redpanda" "start" "--mode=dev-container")
+
+ARGS+=("--node-id=${RP_NODE_ID:-0}")
+ARGS+=("--smp=${RP_SMP:-1}")
+ARGS+=("--memory=${RP_MEMORY:-1G}")
+ARGS+=("--reserve-memory=${RP_RESERVE_MEMORY:-0M}")
+ARGS+=("--overprovisioned")
+ARGS+=("--check=false")
+
+if [[ -n "${RP_KAFKA_LISTENERS:-}" ]]; then
+  IFS=',' read -ra LISTENERS <<< "${RP_KAFKA_LISTENERS}"
+  for L in "${LISTENERS[@]}"; do
+    ARGS+=("--kafka-addr" "${L}")
+  done
 fi
 
-if [[ -z "${RP_ADVERTISE_KAFKA_LISTENERS:-}" ]]; then
-  export RP_ADVERTISE_KAFKA_LISTENERS="PLAINTEXT://localhost:9092"
+if [[ -n "${RP_ADVERTISE_KAFKA_LISTENERS:-}" ]]; then
+  IFS=',' read -ra ADVS <<< "${RP_ADVERTISE_KAFKA_LISTENERS}"
+  for L in "${ADVS[@]}"; do
+    ARGS+=("--advertise-kafka-addr" "${L}")
+  done
 fi
 
-if [[ -z "${RP_RPC_LISTENERS:-}" ]]; then
-  export RP_RPC_LISTENERS="0.0.0.0:33145"
+if [[ -n "${RP_RPC_LISTENERS:-}" ]]; then
+  IFS=',' read -ra RPCS <<< "${RP_RPC_LISTENERS}"
+  for L in "${RPCS[@]}"; do
+    ARGS+=("--rpc-addr" "${L}")
+  done
 fi
 
-if [[ -z "${RP_ADVERTISE_RPC_LISTENERS:-}" ]]; then
-  export RP_ADVERTISE_RPC_LISTENERS="localhost:33145"
+if [[ -n "${RP_ADVERTISE_RPC_LISTENERS:-}" ]]; then
+  IFS=',' read -ra ADVRPCS <<< "${RP_ADVERTISE_RPC_LISTENERS}"
+  for L in "${ADVRPCS[@]}"; do
+    ARGS+=("--advertise-rpc-addr" "${L}")
+  done
 fi
 
-if [[ -z "${RP_SEEDS:-}" ]]; then
-  export RP_SEEDS="${RP_ADVERTISE_RPC_LISTENERS}"
-fi
-
-if [[ -z "${RP_SMP:-}" ]]; then
-  export RP_SMP=1
-fi
-
-if [[ -z "${RP_MEMORY:-}" ]]; then
-  export RP_MEMORY="1G"
-fi
-
-if [[ -z "${RP_RESERVE_MEMORY:-}" ]]; then
-  export RP_RESERVE_MEMORY="0M"
-fi
-
-ARGS=(
-  "redpanda"
-  "start"
-  "--node-id=${RP_NODE_ID}"
-  "--kafka-addr=${RP_KAFKA_LISTENERS}"
-  "--advertise-kafka-addr=${RP_ADVERTISE_KAFKA_LISTENERS}"
-  "--rpc-addr=${RP_RPC_LISTENERS}"
-  "--advertise-rpc-addr=${RP_ADVERTISE_RPC_LISTENERS}"
-  "--seeds=${RP_SEEDS}"
-  "--smp=${RP_SMP}"
-  "--memory=${RP_MEMORY}"
-  "--reserve-memory=${RP_RESERVE_MEMORY}"
-  "--mode=dev-container"
-  "--check=false"
-)
+ARGS+=("--seeds=${RP_SEEDS:-localhost:33145}")
 
 exec "${ARGS[@]}"
