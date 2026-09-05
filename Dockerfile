@@ -15,7 +15,5 @@ RUN chmod +x /usr/local/bin/entrypoint.sh
 
 EXPOSE 9092 8082 8081 33145 9644
 
-VOLUME ["/var/lib/redpanda/data"]
-
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 CMD ["redpanda", "start", "--mode=dev-container"]
