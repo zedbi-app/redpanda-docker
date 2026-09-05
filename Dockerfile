@@ -1,4 +1,4 @@
-FROM docker.redpanda.com/redpandadata/redpanda:v26.2.2
+FROM redpandadata/redpanda:v26.2.2
 
 ARG REDPANDA_VERSION=v26.2.2
 
